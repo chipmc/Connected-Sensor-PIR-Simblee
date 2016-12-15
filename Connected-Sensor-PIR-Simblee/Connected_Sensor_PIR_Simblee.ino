@@ -100,8 +100,8 @@
 #define HOURLYBATTOFFSET 6
 // Finally, here are the variables I want to change often and pull them all together here
 #define DEVICENAME "Umstead"
-#define SERVICENAME "Rte40"
-#define SOFTWARERELEASENUMBER "1.3.6"
+#define SERVICENAME "Dev"
+#define SOFTWARERELEASENUMBER "0.1.0"
 #define PARKCLOSES 19
 #define PARKOPENS 7
 
@@ -203,6 +203,7 @@ int ui_DebounceStepper;  // Slider ID for adjusting debounce on Admin Tab
 int ui_SensitivityStepper;   // Slider ID for adjusting sensitivity on Admin Tab
 int ui_SensitivityValue;    // Provide clear value of the sensitivity
 int ui_DebounceValue;       // Provide a clear value of the debounce setting
+int ui_LedOnOffSwitch;      // To turn the lights on and off
 int ui_UpdateButton;  // Update button ID on Admin Tab
 int ui_UpdateStatus;    // Indicates if an update is pending
 int ui_dateTimeField;  // Text field on Current Tab
@@ -224,7 +225,9 @@ int accelInputValue;            // Raw sensitivity input (0-9);
 byte accelSensitivity;               // Hex variable for sensitivity
 
 // Variables for the control byte
-// Control Register  (8 - 7 Reserved, 6- Simblee Reset Flag, 5-Clear Counts, 4-Simblee Sleep, 3-Start / Stop Test, 2-Set Sensitivity, 1-Set Delay)
+// Control Register  (8 - 7 Reserved, 6- Simblee Reset Flag, 5-Clear Counts, 4-Simblee Sleep, 3-Start / Stop Test, 2-WarmUp, 1-LEDs)
+byte turnLedsOn = B00000001;    // Turn on the LEDs
+byte turnLedsOff = B11111110;   // Turn off the LEDs
 byte signalDebounceChange = B00000001;  // Mask for accessing the debounce bit
 byte signalSentitivityChange = B00000010;   // Mask for accessing the sensitivity bit
 byte toggleStartStop = B00000100;   // Mask for accessing the start / stop bit
@@ -249,6 +252,7 @@ void setup()
     pinMode(The32kPin, INPUT);   // Shared 32kHz line from clock
     pinMode(AlarmPin,INPUT);    // Shared DS3231 Alarm Pin
     pinMode(intPin,INPUT);  // Need to watch this pin
+    digitalWrite(intPin,HIGH);
     pinMode(resetPin,OUTPUT);   // If needed, we can reset the Arduino
     attachPinInterrupt(AlarmPin,wakeUpAlarm,LOW);    // this will trigger an alarm that will put Simblee in low power mode until morning
     
@@ -454,6 +458,18 @@ void ui_event(event_t &event)   // This is where we define the actions to occur 
                     
                 }
             }
+            else if (event.id == ui_LedOnOffSwitch) // Using the LED switch - remember this is on or off and in the LSB
+            {
+                controlRegisterValue = FRAMread8(CONTROLREGISTER);
+                if (event.value)
+                {
+                    FRAMwrite8(CONTROLREGISTER,controlRegisterValue | turnLedsOn );  // Turn on the LED bit
+                }
+                else
+                {
+                    FRAMwrite8(CONTROLREGISTER,controlRegisterValue & turnLedsOff );  // Turn off the LED bit
+                }
+            }
             //
             //else if (event.id == ui_sendCloudSwitch)
             //{
@@ -605,8 +621,10 @@ void createCurrentScreen() // This is the screen that displays current status in
     ui_chargeField = SimbleeForMobile.drawText(200,200," ");
     SimbleeForMobile.drawText(40, 220, "Counter Status:");
     ui_StartStopStatus = SimbleeForMobile.drawText(200, 220, " ");
-    ui_adminLockIcon = SimbleeForMobile.drawText(40,290,"Admin Code:",RED);
-    ui_adminAccessField = SimbleeForMobile.drawTextField(132,285,80,adminAccessInput);
+    SimbleeForMobile.drawText(40,240,"LEDs on or off: ");
+    ui_LedOnOffSwitch = SimbleeForMobile.drawSwitch(200,240);
+    ui_adminLockIcon = SimbleeForMobile.drawText(40,340,"Admin Code:",RED);
+    ui_adminAccessField = SimbleeForMobile.drawTextField(132,335,80,adminAccessInput);
     //ui_sendCloudSwitch = SimbleeForMobile.drawButton(70,400,150,"Send to Cloud");
     //SimbleeForMobile.setEvents(ui_sendCloudSwitch,EVENT_PRESS);
     snprintf(IDBuffer, 35,"%s - %s at version: %s",DEVICENAME,SERVICENAME,SOFTWARERELEASENUMBER);   // Identifies Device on Current screen
@@ -654,6 +672,11 @@ void updateCurrentScreen() // Since we have to update this screen three ways: cr
         SimbleeForMobile.updateText(ui_StartStopStatus, "Running");
     }
     else SimbleeForMobile.updateText(ui_StartStopStatus, "Stopped");
+    
+    if ((controlRegisterValue & turnLedsOn)) {
+        SimbleeForMobile.updateValue(ui_LedOnOffSwitch, 1);
+    }
+    else SimbleeForMobile.updateValue(ui_LedOnOffSwitch,0);
     
     if (adminUnlocked) {
         SimbleeForMobile.updateValue(ui_adminAccessField,adminAccessInput);
