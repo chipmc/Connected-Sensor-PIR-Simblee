@@ -100,7 +100,7 @@
 #define HOURLYBATTOFFSET 6
 // Finally, here are the variables I want to change often and pull them all together here
 #define DEVICENAME "Umstead"
-#define SERVICENAME "Dev"
+#define SERVICENAME "Dev-PIR"
 #define SOFTWARERELEASENUMBER "0.1.0"
 #define PARKCLOSES 19
 #define PARKOPENS 7
@@ -252,7 +252,7 @@ void setup()
     pinMode(The32kPin, INPUT);   // Shared 32kHz line from clock
     pinMode(AlarmPin,INPUT);    // Shared DS3231 Alarm Pin
     pinMode(intPin,INPUT);  // Need to watch this pin
-    digitalWrite(intPin,HIGH);
+    //digitalWrite(intPin,HIGH);
     pinMode(resetPin,OUTPUT);   // If needed, we can reset the Arduino
     attachPinInterrupt(AlarmPin,wakeUpAlarm,LOW);    // this will trigger an alarm that will put Simblee in low power mode until morning
     
