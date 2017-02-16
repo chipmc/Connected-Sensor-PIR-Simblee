@@ -83,8 +83,8 @@
 #define DAILYCOUNTNUMBER 28    // used in modulo calculations - sets the # of days stored
 #define HOURLYCOUNTNUMBER 4064 // used in modulo calculations - sets the # of hours stored - 256k (4096-14-2)
 #define VERSIONADDR 0x0       // Memory Locations By Name not Number
-#define SENSITIVITYADDR 0x1   // For the 1st Word locations
-#define DEBOUNCEADDR 0x2        // Two bytes for debounce
+#define PARKOPENSADDR 0x1   // When does the park open
+#define PARKCLOSESADDR 0x2        // when does the park close
 #define DAILYPOINTERADDR 0x4    // One byte for daily pointer
 #define HOURLYPOINTERADDR 0x5   // Two bytes for hourly pointer
 #define CONTROLREGISTER 0x7     // This is the control register acted on by both Simblee and Arduino
@@ -100,10 +100,8 @@
 #define HOURLYBATTOFFSET 6
 // Finally, here are the variables I want to change often and pull them all together here
 #define DEVICENAME "Umstead"
-#define SERVICENAME "PIR"
-#define SOFTWARERELEASENUMBER "0.1.0"
-#define PARKCLOSES 19
-#define PARKOPENS 7
+#define SERVICENAME "Dev"
+#define SOFTWARERELEASENUMBER "0.2.0"
 
 
 
@@ -156,11 +154,13 @@ void enable32Khz(uint8_t enable); // Need to turn on the 32k square wave for bus
 
 // Define variables and constants
 // Pin Value Variables
-int SCLpin = 13;    // Simblee i2c Clock pin
-int SDApin = 14;    // Simblee i2c Data pin
-int AlarmPin = 20;  // This is the open-drain line for signaling an Alarm
-int resetPin = 30;  // This pin can reset the Arduino
-int intPin = 2;   // This is the pin which wakes the Arduino
+const int SCLpin = 13;    // Simblee i2c Clock pin
+const int SDApin = 14;    // Simblee i2c Data pin
+const int AlarmPin = 20;  // This is the open-drain line for signaling an Alarm
+const int resetPin = 30;  // This pin can reset the Arduino
+const int intPin = 2;   // This is the pin which wakes the Arduino
+const int HeartbeatPin = 4;  // HEartbeat pin to Arduino
+const int PowerDownPin = 6;  // This pin can turn off the power to generate a reboot
 
 // Battery monitor
 float stateOfCharge = 0;    // Initialize state of charge
@@ -170,7 +170,9 @@ tmElements_t tm;        // Time elements (such as tm.Minues
 time_t t;               // UNIX time format (not note 32 bit number unless converted)
 volatile boolean alarmInterrupt = false;  // OK, this is the Alarm Interrupt flag
 int lastHour = 0;  // For recording the startup values
-int lastDate = 0;   // For providing dat break counts
+int lastDate = 0;   // For providing day break counts
+byte ParkOpens;             // When does the park open
+byte ParkCloses;            // When does the park close
 unsigned int hourlyPersonCount = 0;  // hourly counter
 unsigned int dailyPersonCount = 0;   //  daily counter
 
@@ -179,9 +181,9 @@ unsigned int lastupdate = 0;    // For when we are on the current screen
 int updateFrequency = 500;     // How often will we update the current screen
 int adminAccessKey = 27617;     // This is the code you need to enter to get to the admin field
 int adminAccessInput = 0;       // This is the user's input
-boolean clearFRAM = false;
+bool clearFRAM = false;
 const char* releaseNumber = SOFTWARERELEASENUMBER;
-boolean adminUnlocked = false;  // Start with the Admin tab locked
+bool adminUnlocked = false;  // Start with the Admin tab locked
 int resetCount = 0; // How many times has the Simblee reset the Arduino
 unsigned long resetDelay = 20000;   // Don't want to keep resetting the Arduino
 unsigned long lastReset;
@@ -203,6 +205,8 @@ int ui_dateTimeField;  // Text field on Current Tab
 int ui_hourlyField;    // Hour field ID for Houly Tab
 int ui_dailyField;     // Date feild ID for Hourly Tab
 int ui_chargeField;    // State of charge field ID on Current Tab
+int ui_ParkOpensField;  // When does the park open
+int ui_ParkClosesField; // When does the park close
 int ui_menuBar;        // ID for the tabbed Menu Bar
 int ui_setYear, ui_setMonth,ui_setDay,ui_setHour,ui_setMinute,ui_setSecond; // Element which displays date and time values on Admin Tab
 int ui_hourStepper, ui_minStepper, ui_secStepper, ui_yearStepper, ui_monthStepper, ui_dayStepper;   // Stepper IDs for adjusting on Admin Tab
@@ -223,6 +227,7 @@ byte clearSimbleeSleep = B11110111;         // Mask to clear the Sleep bit
 byte signalClearCounts = B00010000; // Flag to have the Arduino clear current counts
 byte signalSimbleeReset = B00100000;    // Sets the reset flag
 byte controlRegisterValue;  // Current value of the control register
+
 
 // include newlib printf float support (%f used in sprintf below)
 asm(".global _printf_float");
@@ -276,19 +281,6 @@ void loop()
         if (alarmInterrupt)
         {
             Simblee_pinWakeCallback(AlarmPin, LOW, wakeUpAlarm); // configures pin 20 to wake up device on a Low signal
-            TakeTheBus();
-            stateOfCharge = batteryMonitor.getSoC();
-            if (stateOfCharge >= 50)   // Update the value and color of the state of charge field
-            {
-                RTC.setAlarm(ALM2_MATCH_HOURS,00,00,PARKOPENS,0); // Set the moringing Alarm early for good battery
-                Serial.print("Battery good - waking up at 7:00am");
-            }
-            else
-            {
-                RTC.setAlarm(ALM2_MATCH_HOURS,00,00,12,0); // Set the moringing Alarm later for low battery
-                Serial.print("Battery weak - waking up at noon");
-            }
-            GiveUpTheBus();
             alarmInterrupt = false;  // Now we can clear the interrupt flag
             Serial.println("... goodnight going to Sleep");
             controlRegisterValue = FRAMread8(CONTROLREGISTER);
@@ -301,6 +293,7 @@ void loop()
             Serial.println("Time to wake up");
             controlRegisterValue = FRAMread8(CONTROLREGISTER);
             FRAMwrite8(CONTROLREGISTER, controlRegisterValue & clearSimbleeSleep);
+            
         }
     }
     if (millis() >= lastupdate + updateFrequency)
@@ -567,8 +560,12 @@ void createCurrentScreen() // This is the screen that displays current status in
     ui_chargeField = SimbleeForMobile.drawText(200,200," ");
     SimbleeForMobile.drawText(40, 220, "Counter Status:");
     ui_StartStopStatus = SimbleeForMobile.drawText(200, 220, " ");
-    SimbleeForMobile.drawText(40,240,"LEDs on or off: ");
-    ui_LedOnOffSwitch = SimbleeForMobile.drawSwitch(200,240);
+    SimbleeForMobile.drawText(40,300,"LEDs on or off: ");
+    ui_LedOnOffSwitch = SimbleeForMobile.drawSwitch(200,300);
+    SimbleeForMobile.drawText(40,240, "Park Opens: ");
+    ui_ParkOpensField = SimbleeForMobile.drawText(200, 240, " ");
+    SimbleeForMobile.drawText(40, 260, "Park Closes: ");
+    ui_ParkClosesField = SimbleeForMobile.drawText(200, 260, " ");
     ui_adminLockIcon = SimbleeForMobile.drawText(40,340,"Admin Code:",RED);
     ui_adminAccessField = SimbleeForMobile.drawTextField(132,335,80,adminAccessInput);
     //ui_sendCloudSwitch = SimbleeForMobile.drawButton(70,400,150,"Send to Cloud");
@@ -581,6 +578,8 @@ void createCurrentScreen() // This is the screen that displays current status in
 void updateCurrentScreen() // Since we have to update this screen three ways: create, menu bar and refresh button
 {
     char battBuffer[4];   // Should be enough 3 digits plus % symbol
+    char ParkOpensBuffer[5]; // Format Time
+    char ParkClosesBuffer[5]; // Format Time
 
     TakeTheBus();
         t = RTC.get();
@@ -621,6 +620,11 @@ void updateCurrentScreen() // Since we have to update this screen three ways: cr
         SimbleeForMobile.updateValue(ui_LedOnOffSwitch, 1);
     }
     else SimbleeForMobile.updateValue(ui_LedOnOffSwitch,0);
+    
+    ParkOpens = FRAMread8(PARKOPENSADDR);
+    snprintf(ParkOpensBuffer, 6,"%i:00",ParkOpens);   // Puts :00 next to time
+    SimbleeForMobile.drawText(200, 240, ParkOpensBuffer);
+    SimbleeForMobile.updateValue(ui_ParkClosesField, FRAMread8(PARKCLOSESADDR));
     
     if (adminUnlocked) {
         SimbleeForMobile.updateValue(ui_adminAccessField,adminAccessInput);

@@ -43,8 +43,9 @@ Memory Map - 256kb or 32kB divided into 4096 words - the  first one is reserved
 Byte     Value
 The first word is for system data
 0        Memory Map Version (this program expects 2)
-1        Available
-2-3      Available
+1        Park Opens  (24 hour clock)
+2        Park Closes (24 hour clock)
+3        Available
 4        Daily Count Pointer
 5-5      Current Hourly Count Pointer (16-bit number)
 7        Control Register  (8 - 5 Reserved, 4- LEDs, 3-Start / Stop Test, 2-Warm Up, 1-LEDs)
