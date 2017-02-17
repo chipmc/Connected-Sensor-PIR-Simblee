@@ -207,6 +207,10 @@ int ui_dailyField;     // Date feild ID for Hourly Tab
 int ui_chargeField;    // State of charge field ID on Current Tab
 int ui_ParkOpensField;  // When does the park open
 int ui_ParkClosesField; // When does the park close
+int ui_ParkOpensStepper;    // Update Open Hour
+int ui_ParkClosesStepper;   // Update Close Hour
+int ui_OpenUpdateField;      // For the Admin screen
+int ui_CloseUpdateField;    // For the Admin Screen
 int ui_menuBar;        // ID for the tabbed Menu Bar
 int ui_setYear, ui_setMonth,ui_setDay,ui_setHour,ui_setMinute,ui_setSecond; // Element which displays date and time values on Admin Tab
 int ui_hourStepper, ui_minStepper, ui_secStepper, ui_yearStepper, ui_monthStepper, ui_dayStepper;   // Stepper IDs for adjusting on Admin Tab
@@ -384,6 +388,8 @@ void ui()   // The function that defines the iPhone UI
 
 void ui_event(event_t &event)   // This is where we define the actions to occur on UI events
 {
+    boolean ParkOpenCloseFlag = false;
+    
     printEvent(event);
     currentScreen = SimbleeForMobile.screen;    // As the event ids are specific to each screen, we have to switch on screen
     if (event.id == ui_menuBar)                 // This is the event handler for the menu bar
@@ -500,7 +506,28 @@ void ui_event(event_t &event)   // This is where we define the actions to occur 
                     FRAMwrite8(CONTROLREGISTER,signalClearCounts ^ controlRegisterValue);  // Toggle the clear counts bit
                     clearFRAM = false;
                 }
+                if (ParkOpenCloseFlag)
+                {
+                    FRAMwrite8(PARKOPENSADDR,ParkOpens);
+                    RTC.setAlarm(ALM2_MATCH_HOURS,00,00,ParkOpens,0); // Set the morning Alarm
+                    FRAMwrite8(PARKCLOSESADDR, ParkCloses);
+                    RTC.setAlarm(ALM1_MATCH_HOURS,00,00,ParkCloses,0); // Set the evening Alarm
+                }
                 SimbleeForMobile.updateText(ui_UpdateStatus," ");
+            }
+            else if (event.id == ui_ParkOpensStepper)    // Used to increment / decrement values for setting clock on the Admin Screen
+            {
+                ParkOpens = event.value;
+                SimbleeForMobile.updateValue(ui_ParkOpensField, ParkOpens);
+                ParkOpenCloseFlag = true;
+                SimbleeForMobile.updateText(ui_UpdateStatus,"Press \"Update\" to confirm");
+            }
+            else if (event.id == ui_ParkClosesStepper)    // Used to increment / decrement values for setting clock on the Admin Screen
+            {
+                ParkCloses = event.value;
+                SimbleeForMobile.updateValue(ui_ParkClosesField, ParkCloses);
+                ParkOpenCloseFlag = true;
+                SimbleeForMobile.updateText(ui_UpdateStatus,"Press \"Update\" to confirm");
             }
             else if (event.id == ui_hourStepper)    // Used to increment / decrement values for setting clock on the Admin Screen
             {
@@ -545,6 +572,9 @@ void ui_event(event_t &event)   // This is where we define the actions to occur 
 void createCurrentScreen() // This is the screen that displays current status information
 {
     char IDBuffer[34];   // Should be enough for 16 chars of service and name, version and text
+    char ParkOpensBuffer[5]; // Format Time
+    char ParkClosesBuffer[5]; // Format Time
+
     
     SimbleeForMobile.beginScreen(WHITE, PORTRAIT); // Sets orientation
     ui_menuBar = SimbleeForMobile.drawSegment(20, 70, 280, titles, countof(titles));
@@ -563,9 +593,13 @@ void createCurrentScreen() // This is the screen that displays current status in
     SimbleeForMobile.drawText(40,300,"LEDs on or off: ");
     ui_LedOnOffSwitch = SimbleeForMobile.drawSwitch(200,300);
     SimbleeForMobile.drawText(40,240, "Park Opens: ");
-    ui_ParkOpensField = SimbleeForMobile.drawText(200, 240, " ");
+    ParkOpens = FRAMread8(PARKOPENSADDR);
+    snprintf(ParkOpensBuffer, 6,"%i:00",ParkOpens);   // Puts :00 next to time
+    SimbleeForMobile.drawText(200, 240, ParkOpensBuffer);
     SimbleeForMobile.drawText(40, 260, "Park Closes: ");
-    ui_ParkClosesField = SimbleeForMobile.drawText(200, 260, " ");
+    ParkCloses = FRAMread8(PARKCLOSESADDR);
+    snprintf(ParkClosesBuffer, 6,"%i:00",ParkCloses);// Puts :00 next to time
+    SimbleeForMobile.drawText(200, 260, ParkClosesBuffer);
     ui_adminLockIcon = SimbleeForMobile.drawText(40,340,"Admin Code:",RED);
     ui_adminAccessField = SimbleeForMobile.drawTextField(132,335,80,adminAccessInput);
     //ui_sendCloudSwitch = SimbleeForMobile.drawButton(70,400,150,"Send to Cloud");
@@ -578,8 +612,6 @@ void createCurrentScreen() // This is the screen that displays current status in
 void updateCurrentScreen() // Since we have to update this screen three ways: create, menu bar and refresh button
 {
     char battBuffer[4];   // Should be enough 3 digits plus % symbol
-    char ParkOpensBuffer[5]; // Format Time
-    char ParkClosesBuffer[5]; // Format Time
 
     TakeTheBus();
         t = RTC.get();
@@ -621,10 +653,6 @@ void updateCurrentScreen() // Since we have to update this screen three ways: cr
     }
     else SimbleeForMobile.updateValue(ui_LedOnOffSwitch,0);
     
-    ParkOpens = FRAMread8(PARKOPENSADDR);
-    snprintf(ParkOpensBuffer, 6,"%i:00",ParkOpens);   // Puts :00 next to time
-    SimbleeForMobile.drawText(200, 240, ParkOpensBuffer);
-    SimbleeForMobile.updateValue(ui_ParkClosesField, FRAMread8(PARKCLOSESADDR));
     
     if (adminUnlocked) {
         SimbleeForMobile.updateValue(ui_adminAccessField,adminAccessInput);
@@ -745,8 +773,13 @@ void createAdminScreen() // This is the screen that displays current status info
     ui_StartStopSwitch = SimbleeForMobile.drawButton(180,150,110, "Start/Stop");
     SimbleeForMobile.setEvents(ui_StartStopSwitch, EVENT_RELEASE);
     
-    SimbleeForMobile.drawText(100,310,"Set Time and Date");
+    SimbleeForMobile.drawText(50, 220, "Set Park Open and Closing Hours");
+    ui_OpenUpdateField = SimbleeForMobile.drawText(70, 240, ParkOpens);
+    ui_ParkOpensStepper = SimbleeForMobile.drawStepper(40, 260, 80, 0, 12);
+    ui_CloseUpdateField = SimbleeForMobile.drawText(180, 240, ParkCloses);
+    ui_ParkClosesStepper = SimbleeForMobile.drawStepper(190, 260, 80, 13, 23);
     
+    SimbleeForMobile.drawText(100,310,"Set Time and Date");
     ui_setYear = SimbleeForMobile.drawText(40,330,60,tm.Year);
     ui_setMonth = SimbleeForMobile.drawText(140,330,45,tm.Month);
     ui_setDay = SimbleeForMobile.drawText(240,330,40,tm.Day);
