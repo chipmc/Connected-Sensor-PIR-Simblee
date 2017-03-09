@@ -101,15 +101,14 @@
 // Finally, here are the variables I want to change often and pull them all together here
 #define DEVICENAME "Umstead"
 #define SERVICENAME "Trenton"
-#define SOFTWARERELEASENUMBER "0.2.1"
+#define SOFTWARERELEASENUMBER "0.2.3"
 
 
 
 // Include application, user and local libraries
 #include <Wire.h>               //http://arduino.cc/en/Reference/Wire (included with Arduino IDE)
 #include "DS3232RTC.h"          //http://github.com/JChristensen/DS3232RTC
-#include "Time.h"               //http://www.arduino.cc/playground/Code/Time
-#include <Timelib.h>
+#include <Timelib.h>            //http://www.arduino.cc/playground/Code/Time
 #include "MAX17043.h"           // Drives the LiPo Fuel Gauge
 #include "Adafruit_FRAM_I2C.h"   // Note - had to comment out the Wire.begin() in this library
 #include "SimbleeForMobile.h"
@@ -117,7 +116,6 @@
 #include <stdio.h>
 #include "FRAMcommon.h"     // Where I put all the common FRAM read and write extensions
 #include "SimbleeForMobileClient.h"
-#include "SimbleeCloud.h"
 
 
 // Prototypes

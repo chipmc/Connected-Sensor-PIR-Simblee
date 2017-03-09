@@ -7,7 +7,8 @@
 # All rights reserved
 # http://embedxcode.weebly.com
 #
-# Last update: Sep 28, 2016 release 5.2.8
+# Last update: Mar 06, 2017 release 7.2.0
+# Updated from 6.0.9 on 20Mar 07, 2017 08:58:37
 
 
 # Libraries
@@ -25,7 +26,7 @@
 #	SimbleeCloud SimbleeCOM SimbleeForMobile SimbleeForMobileClient 
 #	SimbleeGZLL SimbleeNonBLE SimbleeRNG SPI Wire 
 #
-APP_LIBS_LIST = Wire SimbleeForMobile SimbleeForMobileClient SimbleeCloud
+APP_LIBS_LIST = Wire SimbleeForMobile SimbleeForMobileClient
 
 # List user's libraries here 
 # default = 0 = none
@@ -43,7 +44,7 @@ APP_LIBS_LIST = Wire SimbleeForMobile SimbleeForMobileClient SimbleeCloud
 #	SpacebrewYun SPIFlash Temboo Time TimeLib Timezone TinyWireM Twitter 
 #	U8glib Ubidots 
 #
-USER_LIBS_LIST = MAX17043 Adafruit_FRAM_I2C Time Timezone DS3232RTC Timelib
+USER_LIBS_LIST = MAX17043 Adafruit_FRAM_I2C Timezone DS3232RTC Timelib
 
 # List local libraries here
 # default = empty = all
@@ -83,7 +84,7 @@ WARNING_OPTIONS = 0
 # = 0 or = empty or comment: open serial console
 # = 1: don't open serial console
 #
-NO_SERIAL_CONSOLE = 1
+NO_SERIAL_CONSOLE = 0
 
 
 # Teensy USB options (default)
@@ -126,7 +127,7 @@ NO_SERIAL_CONSOLE = 1
 # BOARD_PORT is optional
 # If not defined, BOARD_PORT = /dev/tty.usb* (default)
 #
-BOARD_PORT = /dev/cu.usbserial*
+BOARD_PORT = /dev/cu.usbserial-DN018U9W
 
 # Xcode takes SKETCHBOOK_DIR from preferences.txt
 # If not defined, each IDE has its own SKETCHBOOK_DIR (default)
@@ -145,21 +146,42 @@ BOARD_PORT = /dev/cu.usbserial*
 #OPTIMISATION    = -Os -g3
 
 
+
 # Miscellaneous
 # ----------------------------------
-# Manage path with space in the name
 #
-CURRENT_DIR   := $(shell pwd)
-CURRENT_DIR   := $(shell echo '$(CURRENT_DIR)' | sed 's/ /\\\ /g')
+EMBEDXCODE_EDITION      = embedXcode+ for Wiring / Arduino
+
+# Manage path with space in the name
+CURRENT_DIR_SPACE := $(shell pwd)
+CURRENT_DIR       := $(shell echo '$(CURRENT_DIR_SPACE)' | sed 's/ /\\\ /g')
 
 # C-compliant project name
-#
 PROJECT_NAME_AS_IDENTIFIER = Connected_Sensor_PIR_Simblee
 SKETCH_EXTENSION = ino
 
-MAKEFILE_PATH  = $(CURRENT_DIR)/Makefiles
-UTILITIES_PATH = $(CURRENT_DIR)/Utilities
+# Include only current variant of selected platform
+SELECTED_RESOURCES = true
+
+# For distribution, keep main cpp, false or true
+KEEP_MAIN_CPP = false
+
+# Local makefiles
+#MAKEFILE_PATH     := $(CURRENT_DIR)/Makefiles
+#UTILITIES_PATH    := $(CURRENT_DIR)/Utilities
+
+# Remote makefiles
+EMBEDXCODE_PATH    = $(HOME)/Library/embedXcode/Tools
+MAKEFILE_PATH      = $(EMBEDXCODE_PATH)/Makefiles
+UTILITIES_PATH     = $(EMBEDXCODE_PATH)/Utilities
+
+# Local builds
+#BUILDS_PATH_SPACE := $(CURRENT_DIR_SPACE)/Builds
+#BUILDS_PATH       := $(CURRENT_DIR)/Builds
+
+# Remote builds
+BUILDS_PATH       := $(BUILT_PRODUCTS_DIR)
+BUILDS_PATH_SPACE := $(BUILDS_PATH)
 
 include $(MAKEFILE_PATH)/Step1.mk
-
 
